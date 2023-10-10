@@ -1,0 +1,34 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Vagrant box for testing
+Vagrant.configure("2") do |config|
+  config.vm.box = "fedora/38-cloud-base"
+  memory = 8192
+  cpus = 4
+
+  config.vm.provider :virtualbox do |v|
+    v.memory = memory
+    v.cpus = cpus
+  end
+
+  config.vm.provider :libvirt do |v|
+    v.memory = memory
+    v.cpus = cpus
+  end
+
+  config.vm.provision "run", type: "shell", run: "once" do |sh|
+    sh.inline = <<~SHELL
+      set -euxo pipefail
+      dnf update -y
+      dnf install -y \
+        conntrack \
+        container-selinux \
+        ebtables \
+        ethtool \
+        iptables \
+        socat
+      cp /vagrant/demo /usr/local/bin
+    SHELL
+  end
+end

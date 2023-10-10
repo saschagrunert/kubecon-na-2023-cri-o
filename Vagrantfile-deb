@@ -1,0 +1,30 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/ubuntu2204"
+  memory = 6144
+  cpus = 4
+
+  config.vm.provider :virtualbox do |v|
+    v.memory = memory
+    v.cpus = cpus
+  end
+
+  config.vm.provider :libvirt do |v|
+    v.memory = memory
+    v.cpus = cpus
+  end
+
+  config.vm.synced_folder ".", "/vagrant"
+
+  config.vm.provision "run", type: "shell", run: "once" do |sh|
+    sh.inline = <<~SHELL
+      set -euxo pipefail
+      apt-get update
+      apt-get upgrade -y
+      apt-get install -y conntrack containernetworking-plugins ebtables socat
+      cp /vagrant/demo /usr/local/bin
+    SHELL
+  end
+end
