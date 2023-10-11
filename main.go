@@ -11,9 +11,115 @@ func main() {
 	d.Name = "CRI-O demo for KubeCon NA 2023"
 	d.Usage = "How to use the new deb and rpm packages"
 
+	d.Add(sigstore(), "sigstore", "Validating sigstore signatures")
 	d.Add(rpm(), "rpm", "Using rpm packages")
 	d.Add(deb(), "deb", "Using deb packages")
 	d.Run()
+}
+
+func sigstore() *demo.Run {
+	r := demo.NewRun("How to validate sigstore signatures with CRI-O")
+
+	r.Step(demo.S(
+		"Assuming that we have an up and running Kubernetes",
+		"cluster using CRI-O v1.28",
+	), demo.S(
+		"crio --version | head",
+	))
+
+	r.Step(nil, demo.S(
+		"kubectl get nodes",
+	))
+
+	r.Step(demo.S(
+		"We need to ensure that CRI-O runs with",
+		"enabled sigstore support",
+	), demo.S(
+		"bat /etc/containers/registries.d/default.yaml",
+	))
+
+	r.Step(demo.S(
+		"The default policy does not specify anything of interest",
+	), demo.S(
+		"jq . /etc/containers/policy.json",
+	))
+
+	r.Step(demo.S(
+		"Let's create a new namespaced policy for the default namespace",
+	), demo.S(
+		"cat default.json | sudo tee /etc/crio/policies/default.json | cut -c-80",
+	))
+
+	r.Step(demo.S(
+		"And try to pull the image specifying the sandbox config,",
+		"which contains the referenced namespace",
+	), demo.S(
+		"jq . sandbox_config.json",
+	))
+
+	r.Step(nil, demo.S(
+		"sudo crictl pull --pod-config sandbox_config.json quay.io/crio/signed",
+	))
+
+	r.Step(demo.S(
+		"Awesome, this works as expected. But now let's",
+		"modify the subjectEmail to become wrong",
+	), demo.S(
+		"sudo sed -i 's;sgrunert@redhat.com;wrong;g' /etc/crio/policies/default.json",
+	))
+
+	r.Step(nil, demo.S(
+		"sudo crictl rmi quay.io/crio/signed",
+	))
+
+	r.Step(demo.S(
+		"If we now pull again, then the signature verification fails",
+	), demo.S(
+		"sudo crictl pull --pod-config sandbox_config.json quay.io/crio/signed || true",
+	))
+
+	r.Step(demo.S(
+		"The same validation works with a Kubernetes pod",
+	), demo.S(
+		"bat pod.yaml",
+	))
+
+	r.Step(demo.S(
+		"If we apply the pod",
+	), demo.S(
+		"kubectl apply -f pod.yaml",
+	))
+
+	r.Step(demo.S(
+		"Then it fails to start for the same reason",
+	), demo.S(
+		"kubectl describe pod pod | grep Failed",
+	))
+
+	r.Step(nil, demo.S(
+		"kubectl delete pod pod",
+	))
+
+	r.Step(demo.S(
+		"Kubernetes also features a new status SignatureValidationFailed",
+		"for example if we change the image to become unsigned",
+	), demo.S(
+		"sed -i 's;signed;unsigned;g' pod.yaml",
+	))
+
+	r.Step(demo.S(
+		"And apply the pod manifest",
+	), demo.S(
+		"kubectl apply -f pod.yaml",
+	))
+
+	r.Step(demo.S(
+		"Then the new status will get populated through the CLI",
+	), demo.S(
+		"kubectl get pod pod",
+	))
+
+	return r
 }
 
 const (
